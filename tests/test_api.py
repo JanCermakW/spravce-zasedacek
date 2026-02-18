@@ -269,3 +269,39 @@ def test_create_booking_fail_user_limit(session: Session):
     resp3 = client.post("/bookings/", json=payload3)
     assert resp3.status_code == 400
     assert "too many bookings" in resp3.json()["detail"]
+
+def test_create_room_fail_empty_name(session: Session):
+    """API test: prázdný název místnosti = 400."""
+    response = client.post("/rooms/", json={"name": "", "capacity": 10})
+    assert response.status_code == 400
+    assert "Room name cannot be empty" in response.json()["detail"]
+
+def test_create_room_fail_zero_capacity(session: Session):
+    """API test: kapacita 0 = 400."""
+    response = client.post("/rooms/", json={"name": "Test", "capacity": 0})
+    assert response.status_code == 400
+    assert "Room capacity must be positive" in response.json()["detail"]
+
+def test_create_room_fail_negative_capacity(session: Session):
+    """API test: záporná kapacita = 400."""
+    response = client.post("/rooms/", json={"name": "Test", "capacity": -5})
+    assert response.status_code == 400
+    assert "Room capacity must be positive" in response.json()["detail"]
+
+def test_create_booking_fail_zero_attendees(session: Session):
+    """API test: 0 účastníků = 400."""
+    room = Room(name="Validní", capacity=10)
+    user = User(username="test", email="t@t.cz")
+    session.add_all([room, user])
+    session.commit()
+
+    payload = {
+        "room_id": room.id,
+        "user_id": user.id,
+        "start_time": "2025-01-01T10:00:00",
+        "end_time": "2025-01-01T11:00:00",
+        "attendees": 0
+    }
+    response = client.post("/bookings/", json=payload)
+    assert response.status_code == 400
+    assert "Attendees must be positive" in response.json()["detail"]

@@ -171,3 +171,45 @@ def test_user_limit_ok_with_zero_bookings():
     mock_session.exec.return_value.one.return_value = 0
 
     assert BookingService.validate_user_limit(mock_session, user_id=1) is True
+
+# ===== validate_room_data =====
+
+def test_room_name_cannot_be_empty():
+    """Prázdný název místnosti = ValueError."""
+    with pytest.raises(ValueError, match="Room name cannot be empty"):
+        BookingService.validate_room_data("", 10)
+
+def test_room_name_cannot_be_whitespace():
+    """Název jen z mezer = ValueError."""
+    with pytest.raises(ValueError, match="Room name cannot be empty"):
+        BookingService.validate_room_data("   ", 10)
+
+def test_room_capacity_must_be_positive():
+    """Kapacita 0 = ValueError."""
+    with pytest.raises(ValueError, match="Room capacity must be positive"):
+        BookingService.validate_room_data("OK", 0)
+
+def test_room_capacity_cannot_be_negative():
+    """Záporná kapacita = ValueError."""
+    with pytest.raises(ValueError, match="Room capacity must be positive"):
+        BookingService.validate_room_data("OK", -5)
+
+def test_room_data_valid():
+    """Platná data místnosti = OK."""
+    assert BookingService.validate_room_data("Zasedačka", 10) is True
+
+# ===== validate_booking_attendees =====
+
+def test_attendees_must_be_positive():
+    """0 účastníků = ValueError."""
+    with pytest.raises(ValueError, match="Attendees must be positive"):
+        BookingService.validate_booking_attendees(0)
+
+def test_attendees_cannot_be_negative():
+    """Záporný počet = ValueError."""
+    with pytest.raises(ValueError, match="Attendees must be positive"):
+        BookingService.validate_booking_attendees(-3)
+
+def test_attendees_valid():
+    """Kladný počet = OK."""
+    assert BookingService.validate_booking_attendees(5) is True

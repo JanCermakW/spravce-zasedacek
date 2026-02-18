@@ -3,7 +3,23 @@ from app.models import Room, Booking
 from sqlmodel import Session, select, func
 
 class BookingService:
-    
+
+    @staticmethod
+    def validate_room_data(name: str, capacity: int):
+        """Ověří vstupní data místnosti."""
+        if not name or not name.strip():
+            raise ValueError("Room name cannot be empty")
+        if capacity <= 0:
+            raise ValueError("Room capacity must be positive")
+        return True
+
+    @staticmethod
+    def validate_booking_attendees(attendees: int):
+        """Ověří, že počet účastníků je kladný."""
+        if attendees <= 0:
+            raise ValueError("Attendees must be positive")
+        return True
+
     @staticmethod
     def validate_capacity(room: Room, attendees: int):
         """

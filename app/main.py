@@ -33,6 +33,7 @@ def create_booking(booking: Booking, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="User not found")
 
     try:
+        BookingService.validate_booking_attendees(booking.attendees)        # Pravidlo 0 (vstup)
         BookingService.validate_capacity(room, booking.attendees)           # Pravidlo 1
         BookingService.validate_times(booking.start_time, booking.end_time) # Pravidlo 2
         BookingService.validate_working_days(booking.start_time)            # Pravidlo 3 (Víkend)
@@ -50,7 +51,20 @@ def create_booking(booking: Booking, session: Session = Depends(get_session)):
 # Pomocný endpoint pro vytvoření místnosti (abychom měli co rezervovat)
 @app.post("/rooms/")
 def create_room(room: Room, session: Session = Depends(get_session)):
+    try:
+        BookingService.validate_room_data(room.name, room.capacity)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     session.add(room)
     session.commit()
     session.refresh(room)
     return room
+
+
+# Pomocný endpoint pro vytvoření uživatele
+@app.post("/users/")
+def create_user(user: User, session: Session = Depends(get_session)):
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
