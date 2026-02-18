@@ -305,3 +305,88 @@ def test_create_booking_fail_zero_attendees(session: Session):
     response = client.post("/bookings/", json=payload)
     assert response.status_code == 400
     assert "Attendees must be positive" in response.json()["detail"]
+
+def test_create_user_success(session: Session):
+    """API test: úspěšné vytvoření uživatele."""
+    response = client.post("/users/", json={"username": "Novak", "email": "novak@test.cz"})
+    assert response.status_code == 200
+    assert response.json()["username"] == "Novak"
+    assert response.json()["id"] is not None
+
+def test_create_user_fail_duplicate_email(session: Session):
+    """API test: duplicitní email → 409."""
+    client.post("/users/", json={"username": "Prvni", "email": "dup@test.cz"})
+    response = client.post("/users/", json={"username": "Druhy", "email": "dup@test.cz"})
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+# === GET endpointy ===
+
+def test_list_rooms_empty(session: Session):
+    """API test: prázdný seznam místností."""
+    response = client.get("/rooms/")
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_list_rooms_with_data(session: Session):
+    """API test: výpis místností po vytvoření."""
+    session.add(Room(name="A", capacity=5))
+    session.add(Room(name="B", capacity=10))
+    session.commit()
+
+    response = client.get("/rooms/")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    names = [r["name"] for r in data]
+    assert "A" in names
+    assert "B" in names
+
+def test_list_users_empty(session: Session):
+    """API test: prázdný seznam uživatelů."""
+    response = client.get("/users/")
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_list_users_with_data(session: Session):
+    """API test: výpis uživatelů po vytvoření."""
+    session.add(User(username="Alice", email="a@a.cz"))
+    session.add(User(username="Bob", email="b@b.cz"))
+    session.commit()
+
+    response = client.get("/users/")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    usernames = [u["username"] for u in data]
+    assert "Alice" in usernames
+    assert "Bob" in usernames
+
+def test_list_bookings_empty(session: Session):
+    """API test: prázdný seznam rezervací."""
+    response = client.get("/bookings/")
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_list_bookings_with_data(session: Session):
+    """API test: výpis rezervací po vytvoření."""
+    room = Room(name="Testovací", capacity=10)
+    user = User(username="Tester", email="t@t.cz")
+    session.add_all([room, user])
+    session.commit()
+
+    payload = {
+        "room_id": room.id,
+        "user_id": user.id,
+        "start_time": "2025-01-01T10:00:00",
+        "end_time": "2025-01-01T11:00:00",
+        "attendees": 3
+    }
+    client.post("/bookings/", json=payload)
+
+    response = client.get("/bookings/")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["room_id"] == room.id
+    assert data[0]["user_id"] == user.id
