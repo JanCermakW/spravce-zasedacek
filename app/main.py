@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from sqlmodel import Session
 from datetime import datetime
 from app.database import create_db_and_tables, get_session
-from app.models import Room, Booking
+from app.models import Room, Booking, User
 from app.services import BookingService
 
 app = FastAPI(title="Rezervační Systém", version="1.0.0")
@@ -23,14 +23,21 @@ def create_booking(booking: Booking, session: Session = Depends(get_session)):
         booking.start_time = datetime.fromisoformat(booking.start_time)
     if isinstance(booking.end_time, str):
         booking.end_time = datetime.fromisoformat(booking.end_time)
+    
     room = session.get(Room, booking.room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    
+    user = session.get(User, booking.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
     try:
-        BookingService.validate_capacity(room, booking.attendees)
-        BookingService.validate_times(booking.start_time, booking.end_time)
-        BookingService.check_availability(session, room.id, booking.start_time, booking.end_time)
+        BookingService.validate_capacity(room, booking.attendees)           # Pravidlo 1
+        BookingService.validate_times(booking.start_time, booking.end_time) # Pravidlo 2
+        BookingService.validate_working_days(booking.start_time)            # Pravidlo 3 (Víkend)
+        BookingService.validate_user_limit(session, booking.user_id)        # Pravidlo 4 (Limit)
+        BookingService.check_availability(session, room.id, booking.start_time, booking.end_time) # Pravidlo 5 (Kolize)
         
         session.add(booking)
         session.commit()

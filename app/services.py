@@ -1,6 +1,6 @@
 from datetime import datetime
 from app.models import Room, Booking
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 
 class BookingService:
     
@@ -42,3 +42,13 @@ class BookingService:
             raise ValueError("Room is already booked")
         
         return True
+    
+    @staticmethod
+    def validate_working_days(start_time: datetime):
+        """Rezervace jsou možné jen Po-Pá (0-4)."""
+        pass
+
+    @staticmethod
+    def validate_user_limit(session: Session, user_id: int):
+        """Uživatel nesmí mít více než 2 budoucí rezervace."""
+        pass

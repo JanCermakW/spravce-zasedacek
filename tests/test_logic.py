@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from app.services import BookingService
 from unittest.mock import Mock
 
+# ===== validate_capacity =====
+
 def test_cannot_book_room_exceeding_capacity():
     """
     Business Rule: Pokud je počet lidí > kapacita, vyhoď chybu.
@@ -14,6 +16,22 @@ def test_cannot_book_room_exceeding_capacity():
     with pytest.raises(ValueError, match="Capacity exceeded"):
         BookingService.validate_capacity(room=small_room, attendees=10)
 
+def test_can_book_room_within_capacity():
+    """
+    Pokud je počet lidí <= kapacita, validace projde.
+    """
+    room = Room(name="Velká", capacity=10)
+    assert BookingService.validate_capacity(room=room, attendees=5) is True
+
+def test_can_book_room_at_exact_capacity():
+    """
+    Hraniční případ: počet lidí == kapacita – mělo by projít.
+    """
+    room = Room(name="Přesná", capacity=5)
+    assert BookingService.validate_capacity(room=room, attendees=5) is True
+
+# ===== validate_times =====
+
 def test_cannot_book_with_end_before_start():
     """
     Business Rule: Konec rezervace nesmí být před začátkem.
@@ -23,6 +41,26 @@ def test_cannot_book_with_end_before_start():
 
     with pytest.raises(ValueError, match="End time must be after start time"):
         BookingService.validate_times(start, end)
+
+def test_cannot_book_with_end_equal_to_start():
+    """
+    Hraniční případ: konec == začátek – nulová délka, neplatné.
+    """
+    start = datetime(2025, 1, 1, 10, 0)
+    end = datetime(2025, 1, 1, 10, 0)
+
+    with pytest.raises(ValueError, match="End time must be after start time"):
+        BookingService.validate_times(start, end)
+
+def test_can_book_with_valid_times():
+    """
+    Pokud je end_time > start_time, validace projde.
+    """
+    start = datetime(2025, 1, 1, 10, 0)
+    end = datetime(2025, 1, 1, 11, 0)
+    assert BookingService.validate_times(start, end) is True
+
+# ===== check_availability =====
 
 def test_cannot_book_overlapping_times():
     """
@@ -47,3 +85,33 @@ def test_cannot_book_overlapping_times():
 
     with pytest.raises(ValueError, match="Room is already booked"):
         BookingService.check_availability(mock_session, room.id, new_start, new_end)
+
+def test_can_book_when_room_is_free():
+    """
+    Pokud žádná překrývající se rezervace neexistuje, validace projde.
+    """
+    mock_session = Mock()
+    mock_session.exec.return_value.first.return_value = None
+
+    result = BookingService.check_availability(
+        mock_session, room_id=1,
+        start_time=datetime(2025, 1, 1, 10, 0),
+        end_time=datetime(2025, 1, 1, 11, 0)
+    )
+    assert result is True
+
+def test_can_book_adjacent_slot():
+    """
+    Rezervace hned po skončení jiné – nesmí kolidovat.
+    Existující: 10:00–11:00, nová: 11:00–12:00.
+    """
+    mock_session = Mock()
+    # DB nevrátí kolizi, protože Booking.end_time (11:00) > start_time (11:00) je false
+    mock_session.exec.return_value.first.return_value = None
+
+    result = BookingService.check_availability(
+        mock_session, room_id=1,
+        start_time=datetime(2025, 1, 1, 11, 0),
+        end_time=datetime(2025, 1, 1, 12, 0)
+    )
+    assert result is True

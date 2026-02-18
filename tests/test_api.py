@@ -3,7 +3,8 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlalchemy.pool import StaticPool
 from app.main import app, get_session
-from app.models import Room
+from app.models import Room, User
+from datetime import datetime
 
 # Nastavení testovací in-memory databáze (aby se data neukládala do souboru)
 sqlite_url = "sqlite://" 
@@ -42,7 +43,11 @@ def test_create_room(session: Session):
     assert data["id"] is not None
 
 def test_create_booking_success(session: Session):
-    
+    user = User(username="Tester", email="tester@test.cz")
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
     room = Room(name="Test Room", capacity=5)
     session.add(room)
     session.commit()
@@ -50,14 +55,14 @@ def test_create_booking_success(session: Session):
 
     payload = {
         "room_id": room.id,
-        "user_name": "Tester",
+        "user_id": user.id,
         "start_time": "2025-01-01T10:00:00",
         "end_time": "2025-01-01T11:00:00",
         "attendees": 3
     }
     response = client.post("/bookings/", json=payload)
     assert response.status_code == 200
-    assert response.json()["user_name"] == "Tester"
+    assert response.json()["user_id"] == user.id
 
 def test_create_booking_fail_capacity(session: Session):
     # Místnost s kapacitou 2
@@ -66,10 +71,15 @@ def test_create_booking_fail_capacity(session: Session):
     session.commit()
     session.refresh(room)
 
+    #Vytvoření uživatele
+    user = User(username="pepa", email="pepa@test.cz")
+    session.add(user)
+    session.commit()
+
     # Zkusíme 5 lidí
     payload = {
         "room_id": room.id,
-        "user_name": "Tester",
+        "user_id": user.id,
         "start_time": "2025-01-01T10:00:00",
         "end_time": "2025-01-01T11:00:00",
         "attendees": 5 
@@ -79,3 +89,140 @@ def test_create_booking_fail_capacity(session: Session):
     # Očekáváme 400 Bad Request
     assert response.status_code == 400
     assert "Capacity exceeded" in response.json()["detail"]
+
+def test_full_booking_flow(session: Session):
+    # Vytvoření místnosti
+    room = Room(name="Velká", capacity=10)
+    session.add(room)
+    
+    #Vytvoření uživatele
+    user = User(username="pepa", email="pepa@test.cz")
+    session.add(user)
+    session.commit()
+
+    #Vytvoření rezervace
+    start_dt = datetime(2025, 1, 1, 10, 0)
+    end_dt = datetime(2025, 1, 1, 11, 0)
+    
+    payload = {
+        "room_id": room.id,
+        "user_id": user.id,
+        "start_time": start_dt.isoformat(),
+        "end_time": end_dt.isoformat(),
+        "attendees": 5
+    }
+    response = client.post("/bookings/", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user_id"] == user.id
+
+def test_booking_weekend_fail(session: Session):
+    """Pravidlo: Nelze o víkendu."""
+    room = Room(name="Relax", capacity=5)
+    user = User(username="vikendar", email="v@v.cz")
+    session.add(room)
+    session.add(user)
+    session.commit()
+
+    # Sobota 4.1.2025
+    start_dt = datetime(2025, 1, 4, 10, 0) 
+    end_dt = datetime(2025, 1, 4, 11, 0)
+
+    payload = {
+        "room_id": room.id,
+        "user_id": user.id,
+        "start_time": start_dt.isoformat(),
+        "end_time": end_dt.isoformat(),
+        "attendees": 2
+    }
+    response = client.post("/bookings/", json=payload)
+    assert response.status_code == 400
+    assert "weekends" in response.json()["detail"]
+
+def test_create_booking_fail_end_before_start(session: Session):
+    """API test: end_time < start_time → 400."""
+    room = Room(name="Časová", capacity=10)
+    user = User(username="casovac", email="c@c.cz")
+    session.add(room)
+    session.add(user)
+    session.commit()
+
+    payload = {
+        "room_id": room.id,
+        "user_id": user.id,
+        "start_time": "2025-01-01T11:00:00",
+        "end_time": "2025-01-01T10:00:00",
+        "attendees": 2
+    }
+    response = client.post("/bookings/", json=payload)
+    assert response.status_code == 400
+    assert "End time must be after start time" in response.json()["detail"]
+
+def test_create_booking_fail_room_not_found(session: Session):
+    """API test: neexistující místnost → 404."""
+    user = User(username="ghost", email="g@g.cz")
+    session.add(user)
+    session.commit()
+
+    payload = {
+        "room_id": 9999,
+        "user_id": user.id,
+        "start_time": "2025-01-01T10:00:00",
+        "end_time": "2025-01-01T11:00:00",
+        "attendees": 1
+    }
+    response = client.post("/bookings/", json=payload)
+    assert response.status_code == 404
+    assert "Room not found" in response.json()["detail"]
+
+def test_create_booking_fail_user_not_found(session: Session):
+    """API test: neexistující uživatel → 404."""
+    room = Room(name="Existující", capacity=5)
+    session.add(room)
+    session.commit()
+
+    payload = {
+        "room_id": room.id,
+        "user_id": 9999,
+        "start_time": "2025-01-01T10:00:00",
+        "end_time": "2025-01-01T11:00:00",
+        "attendees": 1
+    }
+    response = client.post("/bookings/", json=payload)
+    assert response.status_code == 404
+    assert "User not found" in response.json()["detail"]
+
+def test_create_booking_fail_overlap(session: Session):
+    """API test: překrývající se rezervace → 400."""
+    room = Room(name="Obsazená", capacity=10)
+    user = User(username="prvni", email="p@p.cz")
+    session.add(room)
+    session.add(user)
+    session.commit()
+
+    # První rezervace – úspěšná
+    payload1 = {
+        "room_id": room.id,
+        "user_id": user.id,
+        "start_time": "2025-01-01T10:00:00",
+        "end_time": "2025-01-01T11:00:00",
+        "attendees": 2
+    }
+    resp1 = client.post("/bookings/", json=payload1)
+    assert resp1.status_code == 200
+
+    # Druhá rezervace – stejný čas, stejná místnost = kolize
+    user2 = User(username="druhy", email="d@d.cz")
+    session.add(user2)
+    session.commit()
+
+    payload2 = {
+        "room_id": room.id,
+        "user_id": user2.id,
+        "start_time": "2025-01-01T10:30:00",
+        "end_time": "2025-01-01T11:30:00",
+        "attendees": 2
+    }
+    resp2 = client.post("/bookings/", json=payload2)
+    assert resp2.status_code == 400
+    assert "Room is already booked" in resp2.json()["detail"]
