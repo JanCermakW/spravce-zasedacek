@@ -4,10 +4,12 @@ from sqlmodel import SQLModel, Field
 
 # === DB entity (tabulky) ===
 
+
 class Room(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     capacity: int
+
 
 class Booking(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -17,16 +19,20 @@ class Booking(SQLModel, table=True):
     end_time: datetime
     attendees: int
 
+
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str
     email: str
 
+
 # === Request schémata (bez id – pro API vstup) ===
+
 
 class RoomCreate(SQLModel):
     name: str
     capacity: int
+
 
 class BookingCreate(SQLModel):
     room_id: int
@@ -34,6 +40,7 @@ class BookingCreate(SQLModel):
     start_time: datetime
     end_time: datetime
     attendees: int
+
 
 class UserCreate(SQLModel):
     username: str
