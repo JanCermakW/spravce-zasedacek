@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
+from contextlib import asynccontextmanager
 from sqlmodel import Session
 from datetime import datetime
 from app.database import create_db_and_tables, get_session
@@ -8,9 +9,12 @@ from app.services import BookingService
 app = FastAPI(title="Rezervační Systém", version="1.0.0")
 
 # Při startu aplikace vytvoříme tabulky (pokud neexistují)
-@app.on_event("startup")
-def on_startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     create_db_and_tables()
+    yield
+
+app = FastAPI(title="Rezervační Systém", version="1.0.0", lifespan=lifespan)
 
 # Endpoint pro vytvoření rezervace
 @app.post("/bookings/")
