@@ -3,5 +3,9 @@ from app.models import Room
 class BookingService:
     @staticmethod
     def validate_capacity(room: Room, attendees: int):
-        #zatím nic, nejdříve test, pak implementace
-        pass
+        """
+        Ověří, zda se účastníci vejdou do místnosti.
+        """
+        if attendees > room.capacity:
+            raise ValueError("Capacity exceeded")
+        return True
