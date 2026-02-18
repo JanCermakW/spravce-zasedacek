@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlmodel import Session
+from datetime import datetime
 from app.database import create_db_and_tables, get_session
 from app.models import Room, Booking
 from app.services import BookingService
@@ -14,7 +15,10 @@ def on_startup():
 # Endpoint pro vytvoření rezervace
 @app.post("/bookings/")
 def create_booking(booking: Booking, session: Session = Depends(get_session)):
-    
+    if isinstance(booking.start_time, str):
+        booking.start_time = datetime.fromisoformat(booking.start_time)
+    if isinstance(booking.end_time, str):
+        booking.end_time = datetime.fromisoformat(booking.end_time)
     room = session.get(Room, booking.room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
