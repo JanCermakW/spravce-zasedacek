@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+resources:
+  - ../../base
+  - patches/namespace.yaml
+
+namePrefix: prod-
+
+patches:
+  - path: patches/app-config.yaml
+  - path: patches/postgres-secret.yaml
+  - path: patches/app-replicas.yaml
