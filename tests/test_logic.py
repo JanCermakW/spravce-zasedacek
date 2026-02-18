@@ -1,7 +1,8 @@
 import pytest
-from app.models import Room
+from app.models import Booking, Room
 from datetime import datetime, timedelta
-from app.services import BookingService 
+from app.services import BookingService
+from unittest.mock import Mock
 
 def test_cannot_book_room_exceeding_capacity():
     """
@@ -22,3 +23,27 @@ def test_cannot_book_with_end_before_start():
 
     with pytest.raises(ValueError, match="End time must be after start time"):
         BookingService.validate_times(start, end)
+
+def test_cannot_book_overlapping_times():
+    """
+    Business Rule: Rezervace se nesmí překrývat.
+    Simulujeme situaci, kdy v DB už něco je.
+    """
+    room = Room(id=1, name="Zasedačka", capacity=10)
+    
+    new_start = datetime(2025, 1, 1, 10, 0)
+    new_end = datetime(2025, 1, 1, 11, 0)
+
+    mock_session = Mock()
+    
+   #simulace rezervace v DB, která se překrývá s novou rezervací
+    mock_session.exec.return_value.first.return_value = Booking(
+        room_id=1, 
+        user_name="Pepa", 
+        start_time=new_start, 
+        end_time=new_end, 
+        attendees=5
+    )
+
+    with pytest.raises(ValueError, match="Room is already booked"):
+        BookingService.check_availability(mock_session, room.id, new_start, new_end)
