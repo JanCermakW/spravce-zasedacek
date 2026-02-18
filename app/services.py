@@ -53,4 +53,12 @@ class BookingService:
     @staticmethod
     def validate_user_limit(session: Session, user_id: int):
         """Uživatel nesmí mít více než 2 budoucí rezervace."""
-        pass
+        statement = select(func.count(Booking.id)).where(
+            Booking.user_id == user_id,
+            Booking.start_time > datetime.now()
+        )
+        count = session.exec(statement).one()
+        
+        if count >= 2:
+            raise ValueError("User creates too many bookings (max 2)")
+        return True

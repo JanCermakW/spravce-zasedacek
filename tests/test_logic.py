@@ -115,3 +115,59 @@ def test_can_book_adjacent_slot():
         end_time=datetime(2025, 1, 1, 12, 0)
     )
     assert result is True
+
+# ===== validate_working_days =====
+
+def test_cannot_book_on_saturday():
+    """Sobota (weekday=5) = ValueError."""
+    saturday = datetime(2025, 1, 4, 10, 0)  # Sobota
+    with pytest.raises(ValueError, match="weekends"):
+        BookingService.validate_working_days(saturday)
+
+def test_cannot_book_on_sunday():
+    """Neděle (weekday=6) = ValueError."""
+    sunday = datetime(2025, 1, 5, 10, 0)  # Neděle
+    with pytest.raises(ValueError, match="weekends"):
+        BookingService.validate_working_days(sunday)
+
+def test_can_book_on_monday():
+    """Pondělí (weekday=0) = OK."""
+    monday = datetime(2025, 1, 6, 10, 0)
+    assert BookingService.validate_working_days(monday) is True
+
+def test_can_book_on_friday():
+    """Pátek (weekday=4) = OK."""
+    friday = datetime(2025, 1, 3, 10, 0)
+    assert BookingService.validate_working_days(friday) is True
+
+# ===== validate_user_limit =====
+
+def test_user_limit_exceeded():
+    """Uživatel má 2 budoucí rezervace = ValueError."""
+    mock_session = Mock()
+    mock_session.exec.return_value.one.return_value = 2
+
+    with pytest.raises(ValueError, match="too many bookings"):
+        BookingService.validate_user_limit(mock_session, user_id=1)
+
+def test_user_limit_exceeded_more_than_two():
+    """Uživatel má 3 budoucí rezervace = ValueError."""
+    mock_session = Mock()
+    mock_session.exec.return_value.one.return_value = 3
+
+    with pytest.raises(ValueError, match="too many bookings"):
+        BookingService.validate_user_limit(mock_session, user_id=1)
+
+def test_user_limit_ok_with_one_booking():
+    """Uživatel má 1 budoucí rezervaci = OK."""
+    mock_session = Mock()
+    mock_session.exec.return_value.one.return_value = 1
+
+    assert BookingService.validate_user_limit(mock_session, user_id=1) is True
+
+def test_user_limit_ok_with_zero_bookings():
+    """Uživatel nemá žádné budoucí rezervace = OK."""
+    mock_session = Mock()
+    mock_session.exec.return_value.one.return_value = 0
+
+    assert BookingService.validate_user_limit(mock_session, user_id=1) is True

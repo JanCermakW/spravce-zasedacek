@@ -226,3 +226,46 @@ def test_create_booking_fail_overlap(session: Session):
     resp2 = client.post("/bookings/", json=payload2)
     assert resp2.status_code == 400
     assert "Room is already booked" in resp2.json()["detail"]
+
+def test_create_booking_fail_user_limit(session: Session):
+    """API test: uživatel s 2 budoucími rezervacemi nemůže vytvořit 3."""
+    room1 = Room(name="Místnost 1", capacity=10)
+    room2 = Room(name="Místnost 2", capacity=10)
+    room3 = Room(name="Místnost 3", capacity=10)
+    user = User(username="limitovany", email="limit@test.cz")
+    session.add_all([room1, room2, room3, user])
+    session.commit()
+
+    # 1. budoucí rezervace – OK
+    payload1 = {
+        "room_id": room1.id,
+        "user_id": user.id,
+        "start_time": "2099-06-01T10:00:00",
+        "end_time": "2099-06-01T11:00:00",
+        "attendees": 2
+    }
+    resp1 = client.post("/bookings/", json=payload1)
+    assert resp1.status_code == 200
+
+    # 2. budoucí rezervace – OK
+    payload2 = {
+        "room_id": room2.id,
+        "user_id": user.id,
+        "start_time": "2099-06-02T10:00:00",
+        "end_time": "2099-06-02T11:00:00",
+        "attendees": 2
+    }
+    resp2 = client.post("/bookings/", json=payload2)
+    assert resp2.status_code == 200
+
+    # 3. budoucí rezervace – FAIL (limit 2)
+    payload3 = {
+        "room_id": room3.id,
+        "user_id": user.id,
+        "start_time": "2099-06-03T10:00:00",
+        "end_time": "2099-06-03T11:00:00",
+        "attendees": 2
+    }
+    resp3 = client.post("/bookings/", json=payload3)
+    assert resp3.status_code == 400
+    assert "too many bookings" in resp3.json()["detail"]
