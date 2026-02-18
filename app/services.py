@@ -46,7 +46,9 @@ class BookingService:
     @staticmethod
     def validate_working_days(start_time: datetime):
         """Rezervace jsou možné jen Po-Pá (0-4)."""
-        pass
+        if start_time.weekday() >= 5:  # 5=Sobota, 6=Neděle
+            raise ValueError("Bookings not allowed on weekends")
+        return True
 
     @staticmethod
     def validate_user_limit(session: Session, user_id: int):
